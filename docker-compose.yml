@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  casino-scraper:
+    build: .
+    container_name: casino-scraper
+    restart: unless-stopped
+    
+    env_file:
+      - .env
+    
+    volumes:
+      - ./output:/app/output
+      - ./logs:/app/logs
+      - ./archive:/app/archive
+      - ./final_output:/app/final_output
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+    container_name: scraper-dashboard
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./output:/usr/share/nginx/html/output:ro
+      - ./logs:/usr/share/nginx/html/logs:ro
+      - ./processed:/usr/share/nginx/html/processed:ro
+      - ./final_output:/usr/share/nginx/html/final_output:ro
+
+    depends_on:
+      - casino-scraper
