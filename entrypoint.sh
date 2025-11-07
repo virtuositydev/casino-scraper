@@ -2,11 +2,6 @@
 
 set -e
 
-# Load environment variables for Ren3
-if [ -f /app/.env.ren3 ]; then
-    export $(cat /app/.env.ren3 | grep -v '^#' | xargs)
-fi
-
 # Create cron job with FULL environment
 echo "Setting up cron job..."
 cat > /etc/cron.d/scraper << 'EOF'
