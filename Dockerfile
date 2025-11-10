@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip install --no-cache-dir python-dotenv requests beautifulsoup4 pandas openpyxl playwright xvfb
+RUN pip install --no-cache-dir python-dotenv requests beautifulsoup4 pandas openpyxl playwright
 
 # Install Playwright browsers (IMPORTANT: Install for root user too)
 RUN playwright install chromium
