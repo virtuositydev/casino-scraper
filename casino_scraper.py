@@ -980,7 +980,7 @@ def scrape_city_of_dreams_jackpots():
         with sync_playwright() as p:
             # Launch with anti-detection flags
             browser = p.chromium.launch(
-                headless=False,  # Headless mode triggers detection more easily
+                headless=True,  # Headless mode triggers detection more easily
                 args=[
                     '--disable-blink-features=AutomationControlled',
                     '--disable-dev-shm-usage',

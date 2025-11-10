@@ -339,23 +339,28 @@ def process_file_and_save_csv(promo_path, user_uuid, workspace_id, output_csv_pa
         
         print(f"Found {len(json_files)} JSON files to process")
 
-        # --- 2. API LOOP ---
+        # Inside the for loop
         for idx, json_file in enumerate(json_files, 1):
-
-            print(f"\nProcessing file {idx}/{len(json_files)}: {json_file.name}")
-            print(f"Time: {datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S')}")
+            try:
+                print(f"\nProcessing file {idx}/{len(json_files)}: {json_file.name}")
+                print(f"Time: {datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S')}")
             
-            answer_obj = call_api(json_file, user_uuid, workspace_id)
-            
-            if 'error' not in answer_obj:
+                # Process this specific file
+                answer_obj = call_api(json_file, user_uuid, workspace_id)
                 answer_obj['source_file'] = json_file.name
-            
-            all_answer_objects.append(answer_obj)
-            
-            # Add 20 second delay between files (except for last file)
-            if idx < len(json_files):
-                print(f"Waiting 20 seconds before next file...")
-                time.sleep(20)
+                all_answer_objects.append(answer_obj)
+                
+            except Exception as file_error:
+                # Log the error but CONTINUE to next file
+                print(f"ERROR processing {json_file.name}: {file_error}")
+                print("Continuing to next file...")
+                
+                # Still save an error entry
+                error_obj = {
+                    'source_file': json_file.name,
+                    'error': f"PROCESSING_ERROR: {str(file_error)}"
+                }
+                all_answer_objects.append(error_obj)
 
         print("\nProcessing complete. Saving all results.")
         return True # Signal success

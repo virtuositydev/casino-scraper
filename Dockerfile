@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip install --no-cache-dir python-dotenv requests beautifulsoup4 pandas openpyxl playwright
+RUN pip install --no-cache-dir python-dotenv requests beautifulsoup4 pandas openpyxl playwright xvfb
 
 # Install Playwright browsers (IMPORTANT: Install for root user too)
 RUN playwright install chromium
@@ -20,9 +20,10 @@ COPY entrypoint.sh .
 COPY cleanup.sh .
 COPY calendar_generator.py .
 COPY email_script.py .
+COPY test-script.py .
 
 # Make scripts executable
-RUN chmod +x entrypoint.sh cleanup.sh calendar_generator.py email_script.py jackpot_parser.py casino_scraper.py web_parser.py
+RUN chmod +x entrypoint.sh cleanup.sh calendar_generator.py email_script.py jackpot_parser.py casino_scraper.py web_parser.py test-script.py
 
 # Create directories
 RUN mkdir -p /app/output /app/logs /app/archive /app/processed /app/final_output
