@@ -215,18 +215,18 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 raise Exception(f"Failed to get job details: {details_result}")
             
             output_folder = details_result.get('returnObject', {}).get('agentJob', {}).get('output_folder')
-            
-            # --- 6. Get Output Files ---
-            output_files_url = f"{api_url}/tensordrive/get_docs"
-            output_data = {
+
+            # --- 6. Get Output Folder First ---
+            print("Getting output folder...")
+            get_folders_url = f"{api_url}/tensordrive/get_docs"
+            folders_data = {
                 'type': 'agents',
                 'fields': ['uuid', 'doc_filename', 'is_folder', 'doc_extension'],
                 'filter': {
                     'status': ['', None],
-                    'parent_folder': output_folder,
+                    'parent_folder': output_folder,  # Job folder
                     'workspace_id': workspace_id,
                     'ingestion_status': 5,
-                    'folder_type': {'operator': 'ISNULLANDVALUE', 'value': 0},
                     'isbundlechild': {'operator': 'ISNULLANDVALUE', 'value': 0},
                     'latest_version': 1
                 },
@@ -234,6 +234,55 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 'useruuid': user_uuid,
                 'workspaceid': workspace_id,
                 'order': 'is_folder DESC,folder_type ASC,doc_filename ASC'
+            }
+
+            response = requests.post(get_folders_url, json=folders_data, timeout=60)
+            response.raise_for_status()
+            folders_result = response.json()
+
+            if not folders_result.get('success'):
+                raise Exception(f"Failed to get job folders: {folders_result}")
+
+            folders = folders_result.get('returnObject', [])
+
+            # 🔍 DEBUG
+            print(f"\n=== DEBUG: Job Folders ===")
+            print(f"Found {len(folders)} items:")
+            for folder in folders:
+                print(f"  - {folder.get('doc_filename')} (is_folder: {folder.get('is_folder')})")
+            print(f"===========================\n")
+
+            # Find the output subfolder
+            output_subfolder_uuid = None
+            for item in folders:
+                if item.get('is_folder') and item.get('doc_filename') == 'output':
+                    output_subfolder_uuid = item.get('uuid')
+                    break
+
+            if not output_subfolder_uuid:
+                raise Exception("Output subfolder not found in job folder")
+
+            print(f"Output subfolder UUID: {output_subfolder_uuid}")
+
+            
+            # --- 7. Get Output Files ---
+            output_files_url = f"{api_url}/tensordrive/get_docs"
+            output_data = {
+                'type': 'agents',
+                'fields': ['uuid', 'doc_filename', 'is_folder', 'doc_extension',"dt_lastmodified"],
+                'filter': {
+                    'status': ['', None],
+                    'parent_folder': output_subfolder_uuid,
+                    'workspace_id': workspace_id,
+                    'ingestion_status': 5,
+                    'folder_type': {'operator': 'ISNULLANDVALUE', 'value': 0},
+                    'isbundlechild': {'operator': 'ISNULLANDVALUE', 'value': 0},
+                    'latest_version': 1
+                },
+                'parent_folder': output_subfolder_uuid,
+                'useruuid': user_uuid,
+                'workspaceid': workspace_id,
+                'order': 'is_folder DESC,folder_type ASC, dt_lastmodified DESC'
             }
             
             response = requests.post(output_files_url, json=output_data, timeout=60)
@@ -244,6 +293,16 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 raise Exception(f"Failed to get output files: {output_result}")
             
             output_files = output_result.get('returnObject', [])
+
+            print(f"\n=== DEBUG: Output Files ===")
+            print(f"Found {len(output_files)} file(s) in output folder:")
+            for idx, file in enumerate(output_files, 1):
+                print(f"  File {idx}:")
+                print(f"    Filename: {file.get('doc_filename')}")
+                print(f"    UUID: {file.get('uuid')}")
+                if 'created_at' in file:
+                    print(f"    Created: {file.get('created_at')}")
+            print(f"===========================\n")
             
             # Find the JSON output file (assuming agent produces JSON now)
             json_output_file = None
