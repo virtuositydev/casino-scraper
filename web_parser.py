@@ -39,12 +39,10 @@ def call_api(json_file_path, user_uuid, workspace_id):
     # --- Retry Configuration (keeping their pattern) ---
     base_delay_seconds = 2  # Wait 2s, then 4s on subsequent failures
     
-    # Generate temp folder UUID for this file
-    temp_folder_uuid = str(uuid.uuid4())
-    
     # --- Retry Loop (keeping their structure) ---
     for attempt in range(max_retries + 1):  # Loop 3 times (0, 1, 2)
         try:
+            temp_folder_uuid = str(uuid.uuid4())
             if attempt > 0:  # This is a retry
                 print(f"Retrying (Attempt {attempt + 1}/{max_retries + 1}).")
             else:  # This is the first attempt
@@ -99,14 +97,15 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 raise Exception(f"Failed to get input files: {files_result}")
             
             input_files = files_result.get('returnObject', [])
+
+            print(f"Expected file: {json_file_path.name}")
+            print(f"Found {len(input_files)} input files for agent.")
             
-            # Handle different response formats
-            if isinstance(input_files, dict):
-                if 'files' in input_files:
-                    input_files = input_files['files']
-                else:
-                    input_files = [input_files]
-            
+            for idx, file in enumerate(input_files, 1):
+                print(f"\n File {idx}:")
+                print(f"   UUID: {file.get('uuid')}")
+                print(f"   Name: {file.get('doc_filename')}")
+
             if not input_files:
                 raise Exception("No input files found after upload")
             
