@@ -347,6 +347,7 @@ def process_file_and_save_csv(promo_path, user_uuid, workspace_id, output_csv_pa
             
                 # Process this specific file
                 answer_obj = call_api(json_file, user_uuid, workspace_id)
+                time.sleep(10)
                 answer_obj['source_file'] = json_file.name
                 all_answer_objects.append(answer_obj)
                 
