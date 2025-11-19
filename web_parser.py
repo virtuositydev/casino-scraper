@@ -104,7 +104,22 @@ def call_api(json_file_path, user_uuid, workspace_id):
             for idx, file in enumerate(input_files, 1):
                 print(f"\n File {idx}:")
                 print(f"   UUID: {file.get('uuid')}")
-                print(f"   Name: {file.get('doc_filename')}")
+                print(f"    Filename: {file.get('doc_filename', 'UNKNOWN')}")
+            print(f"=====================================\n")
+
+            # Filter to only the file we just uploaded
+            expected_filename = json_file_path.name
+            matching_files = [f for f in input_files 
+                            if f.get('doc_filename') == expected_filename]
+            
+            print(f"DEBUG: Matched {len(matching_files)} file(s) with name '{expected_filename}'")
+            
+            if len(matching_files) == 0:
+                raise Exception(f"Uploaded file not found! Expected: {expected_filename}, but got: {[f.get('doc_filename') for f in input_files]}")
+            elif len(matching_files) > 1:
+                print(f"Using the first match")
+            
+            input_files = [matching_files[0]]
 
             if not input_files:
                 raise Exception("No input files found after upload")
