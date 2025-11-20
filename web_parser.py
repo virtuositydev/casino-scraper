@@ -107,6 +107,7 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 print(f"    Filename: {file.get('doc_filename', 'UNKNOWN')}")
             print(f"=====================================\n")
 
+            # =============== NAME MATCHING FOR OUTPUT ======================================
             # Filter to only the file we just uploaded
             expected_filename = json_file_path.name
             matching_files = [f for f in input_files 
@@ -120,7 +121,8 @@ def call_api(json_file_path, user_uuid, workspace_id):
                 print(f"Using the first match")
             
             input_files = [matching_files[0]]
-
+            # ===============================================================================
+            
             if not input_files:
                 raise Exception("No input files found after upload")
             

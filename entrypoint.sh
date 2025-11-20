@@ -19,11 +19,11 @@ EOF
 
 # Append the cron jobs
 cat >> /etc/cron.d/scraper << 'EOF'
-# Run scraper at 2:14 PM UTC, then process with agent
+# Run scraper at 4 PM UTC, then process with agent
 0 16 * * * cd /app && /usr/bin/python3 casino_scraper.py >> /app/logs/scraper_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1 && sleep 5 && /usr/bin/python3 /app/web_parser.py >> /app/logs/processor_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1 && sleep 5 && /usr/bin/python3 /app/jackpot_parser.py >> /app/logs/jackpot_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1 && sleep 5 && /usr/bin/python3 calendar_generator.py >> /app/logs/calendar_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1 && sleep 5 && /usr/bin/python3 email_script.py >> /app/logs/email_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1
 
-# Cleanup old data at 2 AM
-0 2 * * * /app/cleanup.sh >> /app/logs/cleanup_$(date +\%Y\%m\%d).log 2>&1
+# Cleanup old data at 3:50 PM
+50 15 * * * /app/cleanup.sh >> /app/logs/cleanup_$(date +\%Y\%m\%d).log 2>&1
 EOF
 
 # Set permissions
