@@ -1287,65 +1287,52 @@ def scrape_city_of_dreams_jackpots():
     return jackpots
 
 def scrape_solaire_jackpots() -> List[Dict[str, Any]]:
-    """Solaire Jackpots – API only, bulletproof, no crashes ever"""
-    logger.info("\n=== Scraping Solaire Jackpots (API ONLY) ===")
+    logger.info("\n=== Scraping Solaire Jackpots (API) ===")
     url = "https://sec.solaireresort.com/jackpot-data"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Referer": "https://sec.solaireresort.com/play/slots/jackpot-meter",
         "Accept": "application/json, text/plain, */*",
     }
-
+    jackpots = []
+    
     try:
-        r = session.get(url, headers=headers, timeout=20)
+        # Since this is API, we use requests for simplicity (one exception)
+        import requests
+        r = requests.get(url, headers=headers, timeout=20)
         r.raise_for_status()
         data = r.json()
-
-        raw_jackpots = []
-
+        
+        seen = {}
         for item in data.get("data", []):
-            # Get the amount – it can be in "grand" or "balance"
             amount_str = item.get("grand") or item.get("balance") or "0"
-
-            # Clean and skip invalid values
             amount_str = str(amount_str).strip()
             if amount_str in ("None", "", "0", "null"):
                 continue
-
-            # Remove commas and convert to int (handles both "57220855" and "57,220,855")
             amount_clean = amount_str.replace(",", "")
-            amount = int(float(amount_clean))  # float first → handles decimals if any
-
+            amount = int(float(amount_clean))
             game_name = item["name"].replace(" SEC", "").replace(" WAP", "").strip()
-
-            raw_jackpots.append({
+            jp = {
                 "casino": "Solaire Resort",
                 "game_name": game_name,
                 "current_amount": f"₱{amount:,.2f}",
-                "amount_numeric": amount,                    # ← always int
+                "amount_numeric": amount,
                 "jackpot_type": "Progressive",
                 "currency": "PHP",
                 "scraped_at": datetime.now(timezone.utc).isoformat(),
                 "source_url": url
-            })
-
-        # Deduplicate – keep the highest amount for each game name
-        seen: dict[str, dict] = {}
-        for jp in raw_jackpots:
-            name = jp["game_name"]
-            if name not in seen or jp["amount_numeric"] > seen[name]["amount_numeric"]:
-                seen[name] = jp
-
+            }
+            if game_name not in seen or amount > seen[game_name]["amount_numeric"]:
+                seen[game_name] = jp
         jackpots = list(seen.values())
-        logger.info(f"Solaire API → {len(jackpots)} jackpots scraped successfully")
+        logger.info(f"Found {len(jackpots)} jackpots")
         return jackpots
-
     except Exception as e:
         logger.error(f"Solaire jackpot API failed: {e}")
         return []
 
 def save_jackpots(jackpots: List[Dict[str, Any]], folder_name: str):
-    """Save jackpots to a dedicated file with better formatting"""
+    """Save jackpots with proper stats & top 5 – works with int or str amounts"""
     if not jackpots:
         logger.info("  No jackpots to save")
         return
@@ -1357,31 +1344,40 @@ def save_jackpots(jackpots: List[Dict[str, Any]], folder_name: str):
         jackpots_by_casino = {}
         for jp in jackpots:
             casino = jp.get('casino', 'Unknown')
-            if casino not in jackpots_by_casino:
-                jackpots_by_casino[casino] = []
-            jackpots_by_casino[casino].append(jp)
+            jackpots_by_casino.setdefault(casino, []).append(jp)
         
+        # === SAFELY EXTRACT NUMERIC AMOUNT (supports int, float, or str) ===
+        def get_numeric_amount(jp) -> float:
+            val = jp.get("amount_numeric", 0)
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                cleaned = val.replace(",", "").replace("₱", "").strip()
+                try:
+                    return float(cleaned)
+                except ValueError:
+                    return 0.0
+            return 0.0
+
         # Calculate statistics
         stats_by_casino = {}
+        all_amounts = []  # for global top 5
+
         for casino, jps in jackpots_by_casino.items():
-            amounts = []
-            for jp in jps:
-                try:
-                    # Extract numeric value
-                    amount_str = jp.get('amount_numeric', '0')
-                    amount_num = float(amount_str.replace(',', ''))
-                    amounts.append(amount_num)
-                except:
-                    pass
+            amounts = [get_numeric_amount(jp) for jp in jps if get_numeric_amount(jp) > 0]
+            total = sum(amounts)
+            count = len(amounts)
             
             stats_by_casino[casino] = {
-                'count': len(jps),
-                'total': sum(amounts) if amounts else 0,
-                'average': sum(amounts) / len(amounts) if amounts else 0,
+                'count': count,
+                'total': total,
+                'average': total / count if count > 0 else 0,
                 'highest': max(amounts) if amounts else 0,
                 'lowest': min(amounts) if amounts else 0
             }
-        
+            all_amounts.extend([(get_numeric_amount(jp), jp) for jp in jps])
+
+        # Build summary
         jackpot_summary = {
             "scraped_at": datetime.now().isoformat(),
             "total_jackpots": len(jackpots),
@@ -1391,30 +1387,32 @@ def save_jackpots(jackpots: List[Dict[str, Any]], folder_name: str):
             "all_jackpots": jackpots
         }
         
+        # Save to file
         with open(jackpot_file, 'w', encoding='utf-8') as f:
             json.dump(jackpot_summary, f, indent=2, ensure_ascii=False)
-        
+
+        # === LOGGING ===
         logger.info(f"\nJackpots Summary:")
         logger.info(f"  • Total jackpots found: {len(jackpots)}")
         
         for casino, stats in stats_by_casino.items():
+            c = stats['count']
             logger.info(f"\n  {casino}:")
-            logger.info(f"    • Count: {stats['count']}")
-            logger.info(f"    • Total pool: ₱ {stats['total']:,.2f}")
-            logger.info(f"    • Average: ₱ {stats['average']:,.2f}")
-            logger.info(f"    • Highest: ₱ {stats['highest']:,.2f}")
-            logger.info(f"    • Lowest: ₱ {stats['lowest']:,.2f}")
-        
-        # Show sample jackpots (highest value ones)
+            logger.info(f"    • Count: {c}")
+            if c > 0:
+                logger.info(f"    • Total pool: ₱ {stats['total']:,.2f}")
+                logger.info(f"    • Average: ₱ {stats['average']:,.2f}")
+                logger.info(f"    • Highest: ₱ {stats['highest']:,.2f}")
+                logger.info(f"    • Lowest: ₱ {stats['lowest']:,.2f}")
+            else:
+                logger.info(f"    • No valid jackpot amounts")
+
+        # === TOP 5 (NOW WORKS WITH INT AMOUNTS!) ===
         logger.info(f"\n  Top 5 Jackpots:")
-        sorted_jackpots = sorted(
-            jackpots, 
-            key=lambda x: int(str(x.get("amount_numeric", 0)).replace(",", "")),
-            reverse=True
-        )
-        for i, jp in enumerate(sorted_jackpots[:5], 1):
-            logger.info(f"    {i}. {jp.get('casino')} - {jp.get('game_name')}: {jp.get('current_amount')}")
-        
+        top_5 = sorted(all_amounts, key=lambda x: x[0], reverse=True)[:5]
+        for i, (amount, jp) in enumerate(top_5, 1):
+            logger.info(f"    {i}. {jp.get('casino')} - {jp.get('game_name')}: ₱{amount:,.2f}")
+
         logger.info(f"\n  Saved to: {jackpot_file}")
         
     except Exception as e:
