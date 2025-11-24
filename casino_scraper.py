@@ -500,7 +500,6 @@ def scrape_city_of_dreams():
             offer_list = list(all_offer_links)[:MAX_PAGES_PER_CASINO] if MAX_PAGES_PER_CASINO else list(all_offer_links)
             
             for i, url in enumerate(offer_list, 1):
-                logger.info(f"  Scraping {i}/{len(offer_list)}: {url}")
                 try:
                     page.goto(url, wait_until='domcontentloaded', timeout=30000)
                     page.wait_for_timeout(2000)
@@ -583,8 +582,6 @@ def scrape_city_of_dreams_static():
             logger.info(f"  Scraped: {result['title']}")
     
     return results
-
-# Add these functions after scrape_city_of_dreams_static() in your script:
 
 def scrape_newport_world():
     """Enhanced scraper for Newport World Resorts"""
@@ -1289,179 +1286,63 @@ def scrape_city_of_dreams_jackpots():
     
     return jackpots
 
-def scrape_solaire_jackpots():
-    """Scrape jackpots from Solaire Resort with proper parsing"""
-    logger.info("\n=== Scraping Solaire Jackpots ===")
-    jackpots = []
-    
-    if not PLAYWRIGHT_AVAILABLE:
-        logger.warning("Playwright not available. Cannot scrape jackpots.")
-        return jackpots
-    
-    url = JACKPOT_CONFIG["solaire"]["url"]
-    
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            )
-            page = context.new_page()
-            
-            logger.info(f"  Loading: {url}")
-            page.goto(url, wait_until='domcontentloaded', timeout=60000)
-            page.wait_for_selector('.banner-slot', timeout=10000)
-            page.wait_for_timeout(5000)
-            
-            # Extract jackpot data from the page
-            jackpot_data = page.evaluate(r"""
-                () => {
-                    const jackpots = [];
-                    
-                    // Find all jackpot containers
-                    const containers = document.querySelectorAll('.banner-slot');
-                    
-                    containers.forEach(container => {
-                        try {
-                            // Extract game name from image src
-                            const img = container.querySelector('.jackpot-img');
-                            let gameName = 'Unknown Game';
-                            
-                            if (img && img.src) {
-                                // Parse game name from filename
-                                const filename = img.src.split('/').pop().replace('.png', '').replace('.webp', '');
-                                // Convert underscores and hyphens to spaces, clean up
-                                gameName = filename
-                                    .replace(/_/g, ' ')
-                                    .replace(/-/g, ' ')
-                                    .replace(/\d+$/, '') // Remove trailing numbers
-                                    .replace(/logo/gi, '')
-                                    .replace(/curve/gi, '')
-                                    .trim();
-                                
-                                // Capitalize words
-                                gameName = gameName.split(' ')
-                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                                    .join(' ');
-                                    
-                                // Special case mappings
-                                const nameMapping = {
-                                    'Jinjibaoxi': 'Jin Ji Bao Xi',
-                                    'Dl': 'Dragon Link',
-                                    'Lightning Link': 'Lightning Link',
-                                    'Duo Fu Duo Cai Grand': 'Duo Fu Duo Cai',
-                                    'Jotd': 'Jewels of the Dragon',
-                                    'Jin Cai Hao Yun': 'Jin Cai Hao Yun',
-                                    'Coin Combo': 'Coin Combo',
-                                    'Mighty Cash': 'Mighty Cash',
-                                    'Lightning Gongs': 'Lightning Gongs',
-                                    'Dfdc Thumbnail': 'Duo Fu Duo Cai',
-                                    'Dragon Trio': 'Dragon Trio',
-                                    'Shfp': 'Super Happy Fortune',
-                                    'Bao Zhu Zhao Fu': 'Bao Zhu Zhao Fu',
-                                    'Lion Link': 'Lion Link',
-                                    'Fu Lai Cai Lai': 'Fu Lai Cai Lai',
-                                    'Fafafa': 'FaFaFa',
-                                    'Fortune Harmony': 'Fortune Harmony',
-                                    'Coin Trio': 'Coin Trio',
-                                    'Good Fortune': 'Good Fortune',
-                                    'Super Split': 'Super Split'
-                                };
-                                
-                                // Apply mapping if exists
-                                for (const [key, value] of Object.entries(nameMapping)) {
-                                    if (gameName.toLowerCase().includes(key.toLowerCase())) {
-                                        gameName = value;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            // Extract jackpot amount
-                            const numberContainer = container.querySelector('.banner-slot-number');
-                            let amount = '';
-                            
-                            if (numberContainer) {
-                                // Get all digit spans
-                                const digits = numberContainer.querySelectorAll('.slot-digit');
-                                let amountParts = [];
-                                
-                                digits.forEach(digit => {
-                                    if (digit.classList.contains('seperator')) {
-                                        amountParts.push(digit.textContent.trim());
-                                    } else {
-                                        // Get the first visible number
-                                        const spans = digit.querySelectorAll('span');
-                                        if (spans.length > 0) {
-                                            amountParts.push(spans[0].textContent.trim());
-                                        }
-                                    }
-                                });
-                                
-                                amount = '₱ ' + amountParts.join('');
-                            }
-                            
-                            if (amount && amount !== '₱ ') {
-                                jackpots.push({
-                                    game_name: gameName,
-                                    amount: amount
-                                });
-                            }
-                        } catch (e) {
-                            console.error('Error processing container:', e);
-                        }
-                    });
-                    
-                    return jackpots;
-                }
-            """)
-            
-            # Process the extracted data
-            for jp in jackpot_data:
-                amount = jp.get('amount', '')
-                if amount and '₱' in amount:
-                    # Extract numeric value for sorting/comparison
-                    amount_numeric = re.sub(r'[^\d,.]', '', amount)
-                    
-                    jackpots.append({
-                        "casino": "Solaire Resort",
-                        "game_name": jp.get('game_name', 'Unknown Game'),
-                        "current_amount": amount,
-                        "amount_numeric": amount_numeric,
-                        "jackpot_type": "Progressive",
-                        "currency": "PHP",
-                        "scraped_at": datetime.now(timezone.utc).isoformat(),
-                        "source_url": url
-                    })
-            
-            browser.close()
-            
-            # ============================================
-            # HANDLE DUPLICATE GAME NAMES
-            # ============================================
-            from collections import defaultdict
-            
-            game_counts = defaultdict(int)
-            for jackpot in jackpots:
-                game_counts[jackpot['game_name']] += 1
-            
-            game_counters = defaultdict(int)
-            for jackpot in jackpots:
-                game_name = jackpot['game_name']
-                
-                if game_counts[game_name] > 1:  # Only number if there are duplicates
-                    game_counters[game_name] += 1
-                    jackpot['game_name'] = f"{game_name} {game_counters[game_name]}"
-            
-            logger.info(f"  Successfully scraped {len(jackpots)} jackpots")
-            
-    except Exception as e:
-        logger.error(f"  Error scraping Solaire jackpots: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-    
-    return jackpots
+def scrape_solaire_jackpots() -> List[Dict[str, Any]]:
+    """Solaire Jackpots – API only, bulletproof, no crashes ever"""
+    logger.info("\n=== Scraping Solaire Jackpots (API ONLY) ===")
+    url = "https://sec.solaireresort.com/jackpot-data"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Referer": "https://sec.solaireresort.com/play/slots/jackpot-meter",
+        "Accept": "application/json, text/plain, */*",
+    }
 
+    try:
+        r = session.get(url, headers=headers, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+
+        raw_jackpots = []
+
+        for item in data.get("data", []):
+            # Get the amount – it can be in "grand" or "balance"
+            amount_str = item.get("grand") or item.get("balance") or "0"
+
+            # Clean and skip invalid values
+            amount_str = str(amount_str).strip()
+            if amount_str in ("None", "", "0", "null"):
+                continue
+
+            # Remove commas and convert to int (handles both "57220855" and "57,220,855")
+            amount_clean = amount_str.replace(",", "")
+            amount = int(float(amount_clean))  # float first → handles decimals if any
+
+            game_name = item["name"].replace(" SEC", "").replace(" WAP", "").strip()
+
+            raw_jackpots.append({
+                "casino": "Solaire Resort",
+                "game_name": game_name,
+                "current_amount": f"₱{amount:,.2f}",
+                "amount_numeric": amount,                    # ← always int
+                "jackpot_type": "Progressive",
+                "currency": "PHP",
+                "scraped_at": datetime.now(timezone.utc).isoformat(),
+                "source_url": url
+            })
+
+        # Deduplicate – keep the highest amount for each game name
+        seen: dict[str, dict] = {}
+        for jp in raw_jackpots:
+            name = jp["game_name"]
+            if name not in seen or jp["amount_numeric"] > seen[name]["amount_numeric"]:
+                seen[name] = jp
+
+        jackpots = list(seen.values())
+        logger.info(f"Solaire API → {len(jackpots)} jackpots scraped successfully")
+        return jackpots
+
+    except Exception as e:
+        logger.error(f"Solaire jackpot API failed: {e}")
+        return []
 
 def save_jackpots(jackpots: List[Dict[str, Any]], folder_name: str):
     """Save jackpots to a dedicated file with better formatting"""
@@ -1528,7 +1409,7 @@ def save_jackpots(jackpots: List[Dict[str, Any]], folder_name: str):
         logger.info(f"\n  Top 5 Jackpots:")
         sorted_jackpots = sorted(
             jackpots, 
-            key=lambda x: float(x.get('amount_numeric', '0').replace(',', '') or 0),
+            key=lambda x: int(str(x.get("amount_numeric", 0)).replace(",", "")),
             reverse=True
         )
         for i, jp in enumerate(sorted_jackpots[:5], 1):
